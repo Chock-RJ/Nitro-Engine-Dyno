@@ -17,7 +17,7 @@ I then have a GUI for conterolling all this and outputting a graph of the data l
 
 **Current issues:**
 
--The servos jiter, they are on a seperate power supply with common grounds
+-The servos jiter, they are on a seperate power supply(5v, 2.4A, 12Watt with common grounds
 
 -I have a keybind setup for the throttle to go from 100% down to 50% breifly then back to 100% (referred to a s a "Run" from now on(CTRL+R)) (simulating the engines being throttled for a corner during a race).
 I need to be able to identify this period of time in the data being recorded. 
