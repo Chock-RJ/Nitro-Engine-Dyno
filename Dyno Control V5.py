@@ -26,6 +26,7 @@ window.pack(padx=0, pady=0)
 throttle_request_var = tk.IntVar()
 mixture_request_var = tk.IntVar()
 load_request_var = tk.IntVar()
+run_counter_var = tk.IntVar(value=0)
 
 # serial lines
 measurements = []
@@ -200,7 +201,7 @@ def toggle_record():
         current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         filename = f"logs/log_{current_time}.csv"
         log_file = open(filename, "w")
-        print("millis,throttle,load_request,load_actual,rotations,rpm,head_temp,manifold_temp,air_temp", file=log_file)
+        print("millis,throttle,load_request,load_actual,rotations,rpm,head_temp,manifold_temp,air_temp,run_counter", file=log_file)
         record_button.config(text="Stop Recording", bg="red")
         is_recording = True
 
@@ -222,22 +223,31 @@ button.grid(column=0, row=9, padx=10, pady=10)
 
 
 # Main Event Loop
+rpm_stable= False
+def check_rpm_stable():
+    global rpm_stable
+    if rpm_stable: 
+        return None
+    
+    run_measurements_count = len(list(filter(lambda item: item["run_count"] == run_counter_var.get(), measurements)))
+    if run_measurements_count < 5: 
+        return None
+    
+    last_five_rpms = [item["rpm"] for item in measurements[-5:]]
+
+    max_rpm = max(last_five_rpms)
+    min_rpm = min(last_five_rpms)
+    difference = max_rpm - min_rpm
+
+    rpm_stable= difference <300
+
 def read_serial():
     while True:
         try:
             if ser.is_open and ser.in_waiting:
                 line = ser.readline().decode('utf-8').rstrip()
+                #line=line+","+run_counter_var.get()
 
-                # If recording, write the line to the log file
-                if is_recording and log_file:
-                    print(line, file=log_file)
-
-                # Print to GUI serial monitor
-                serial_monitor.config(state=tk.NORMAL)
-                serial_monitor.insert(tk.END, line + "\n")
-                serial_monitor.yview(tk.END)
-                serial_monitor.config(state=tk.DISABLED)
-                
                 # Extract individual data
                 data = line.split(",")
                 millis, throttle_percentage, load_requested, load_actual, rotations, rpm, temp1, temp2, temp3 = data
@@ -252,8 +262,25 @@ def read_serial():
                     'head_temp': float(temp1),
                     'manifold_temp': float(temp2),
                     'air_temp': float(temp3),
+                    'run_count': run_counter_var.get(),
                 }
                 measurements.append(measurement)
+
+                check_rpm_stable()
+
+                run_count=run_counter_var.get() if not rpm_stable else 0
+
+                line=f"{line},{run_count}-{rpm_stable}"
+
+                # If recording, write the line to the log file
+                if is_recording and log_file:
+                    print(line, file=log_file)
+
+                # Print to GUI serial monitor
+                serial_monitor.config(state=tk.NORMAL)
+                serial_monitor.insert(tk.END, line + "\n")
+                serial_monitor.yview(tk.END)
+                serial_monitor.config(state=tk.DISABLED)
 
                 # Update GUI labels
                 rpm_label.config(text=f"RPM: {rpm}")
@@ -272,13 +299,21 @@ def STOP(event):
 def STOPLOAD(event):
     kill_load()
 
+def start_corner():
+    global rpm_stable
+    run_counter_var.set(run_counter_var.get()+1)
+    rpm_stable= False
+    throttle50()  
+
 def corner_test(event):
     throttle100()
-    threading.Timer(1, throttle50).start()  # Delay for 1 second
+
+    threading.Timer(1, start_corner).start()  # Delay for 1 second
     threading.Timer(1.5, throttle100).start()  # Delay for 2 seconds from start
 
 def quick_connect(event):
     toggle_serial()
+
 
 # Bind keys to above function
 root.bind('<Control-x>', STOP)
