@@ -183,6 +183,7 @@ def update_plot(frame):
 ani = animation.FuncAnimation(fig, update_plot, frames=range(10), init_func=init_plot, blit=True)
 
 
+
 is_recording = False
 log_file = None
 
